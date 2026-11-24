@@ -42,3 +42,11 @@ X_train_scaled = scaler.fit_transform(X_train)
 # Standardize using the existing training statistics.
 X_val_scaled = scaler.transform(X_val)
 X_test_scaled = scaler.transform(X_test)
+
+print("Training size:", len(X_train))
+print("Validation size:", len(X_val))
+print("Testing size:", len(X_test))
+
+df = pd.read_csv("data/wdbc.data")
+print(df.shape)
+print(df["Diagnosis"].value_counts())
