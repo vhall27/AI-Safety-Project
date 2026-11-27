@@ -47,6 +47,4 @@ print("Training size:", len(X_train))
 print("Validation size:", len(X_val))
 print("Testing size:", len(X_test))
 
-df = pd.read_csv("data/wdbc.data")
-print(df.shape)
-print(df["Diagnosis"].value_counts())
+

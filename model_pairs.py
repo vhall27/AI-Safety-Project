@@ -27,5 +27,3 @@ def find_pairs(accuracies, THRESHOLD):
 mlp_pairs = find_pairs(mlp_accuracies, THRESHOLD)
 forest_pairs = find_pairs(random_forest_accuracies, THRESHOLD)
 
-print("Similar MLP pairs:", len(mlp_pairs))
-print("Similar RF pairs:", len(forest_pairs))
