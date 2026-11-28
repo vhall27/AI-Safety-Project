@@ -21,19 +21,20 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import roc_auc_score, classification_report
 
 
-# This first Set of evaluators is for the MLP Models 
+# ------- This first Set of evaluators is for the MLP Models -------
 
-# Ground truth
+# Creating a ground truth by applying Gaussian noise of severity 2.0 to the validation data
 X_shifted = gaussian_noise(X_val, severity=2.0)
 X_shifted_scaled = scaler.transform(X_shifted)
 
 shifted_accuracies = []
 
+# Finding the accuracy of each model on the shifted data
 for model in mlp_models:
     predictions = model.predict(X_shifted_scaled)
     shifted_accuracies.append(accuracy_score(y_val, predictions))
 
-# IID accuracies
+# Finding the IID validation accuracy of each model
 X_val_scaled = scaler.transform(X_val)
 
 iid_accuracies = []
@@ -42,7 +43,9 @@ for model in mlp_models:
     predictions = model.predict(X_val_scaled)
     iid_accuracies.append(accuracy_score(y_val, predictions))
 
-# Creating the dataset for the evaluator
+# --------- Evaluator 1: Access to IID validation accuracies ------------
+
+# Creating the dataset for the first evaluator
 X_eval = []
 y_eval = []
 
@@ -50,16 +53,21 @@ for i, j in mlp_pairs:
     acc1 = iid_accuracies[i]
     acc2 = iid_accuracies[j]
 
+    # The evaluator has access to both IID accuracies(min, max) and the difference between them
     X_eval.append([
         min(acc1, acc2),
         max(acc1, acc2),
         abs(acc1 - acc2)
     ])
 
+
+    # Finding the difference in accuracy under distribution shift
     shifted_gap = abs(
         shifted_accuracies[i] - shifted_accuracies[j]
     )
 
+    # Add a 1 to y_eval if the pair exhibits underspecification
+    # This means that the shifted accuracy gap is at least 5 % points
     y_eval.append(int(shifted_gap >= 0.05))
 
 # Splitting the results into test and train sets for the evaluator
@@ -74,6 +82,7 @@ y_eval_train = []
 X_eval_test = []
 y_eval_test = []
 
+# Making sure that no singular model is in both the training and testing sets!
 for k, (i, j) in enumerate(mlp_pairs):
 
     if i in train_indices and j in train_indices:
@@ -84,19 +93,20 @@ for k, (i, j) in enumerate(mlp_pairs):
         X_eval_test.append(X_eval[k])
         y_eval_test.append(y_eval[k])
 
+# Using balanced class weights since there are fewer underspecified pairs than not
 evaluator1 = LogisticRegression(class_weight="balanced")
 
+# This trains the evaluator to predict underspecification
 evaluator1.fit(X_eval_train, y_eval_train)
 
+# Now testing the evaluator on pairs it hasn't seen before
 predictions = evaluator1.predict(X_eval_test)
-
 probabilities1 = evaluator1.predict_proba(X_eval_test)[:, 1]
 
+# Printing out the performance of the first evaluator
 print("ROC-AUC:", roc_auc_score(y_eval_test, probabilities1))
 print(classification_report(y_eval_test, predictions, zero_division=0))
-
 print("Evaluator 1 accuracy:", accuracy_score(y_eval_test, predictions))
-
 print("Predicted probabilities:", evaluator1.predict_proba(X_eval_test)[:5])
 
 iid_probabilities = []
