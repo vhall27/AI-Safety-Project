@@ -12,11 +12,16 @@ from model_pairs import mlp_pairs, forest_pairs
 from preprocess_data import X_val, y_val, scaler
 from stress_tests import gaussian_noise, accuracy_score
 
+
 import numpy as np
 import pandas as pd
 from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import roc_auc_score, classification_report
+
+
+# This first Set of evaluators is for the MLP Models 
 
 # Ground truth
 X_shifted = gaussian_noise(X_val, severity=2.0)
@@ -79,11 +84,16 @@ for k, (i, j) in enumerate(mlp_pairs):
         X_eval_test.append(X_eval[k])
         y_eval_test.append(y_eval[k])
 
-evaluator1 = LogisticRegression()
+evaluator1 = LogisticRegression(class_weight="balanced")
 
 evaluator1.fit(X_eval_train, y_eval_train)
 
 predictions = evaluator1.predict(X_eval_test)
+
+probabilities1 = evaluator1.predict_proba(X_eval_test)[:, 1]
+
+print("ROC-AUC:", roc_auc_score(y_eval_test, probabilities1))
+print(classification_report(y_eval_test, predictions, zero_division=0))
 
 print("Evaluator 1 accuracy:", accuracy_score(y_eval_test, predictions))
 
@@ -121,7 +131,7 @@ X_eval2_test_scaled = eval_scaler.transform(X_eval2_test)
 
 from sklearn.metrics import roc_auc_score, classification_report
 
-evaluator2 = LogisticRegression()
+evaluator2 = LogisticRegression(class_weight="balanced")
 evaluator2.fit(X_eval2_train_scaled, y_eval_train)
 
 predictions2 = evaluator2.predict(X_eval2_test_scaled)
@@ -162,3 +172,65 @@ df3 = pd.DataFrame(X_eval3, columns=[
 df3["Underspecified"] = y_eval
 
 print(df3.head(50).to_string(index=False))
+
+X_eval3_train = []
+X_eval3_test = []
+
+for k, (i, j) in enumerate(mlp_pairs):
+    if i in train_indices and j in train_indices:
+        X_eval3_train.append(X_eval3[k])
+
+    elif i in test_indices and j in test_indices:
+        X_eval3_test.append(X_eval3[k])
+
+eval3_scaler = StandardScaler()
+
+X_eval3_train_scaled = eval3_scaler.fit_transform(X_eval3_train)
+X_eval3_test_scaled = eval3_scaler.transform(X_eval3_test)
+
+evaluator3 = LogisticRegression(class_weight="balanced")
+
+evaluator3.fit(X_eval3_train_scaled, y_eval_train)
+
+predictions3 = evaluator3.predict(X_eval3_test_scaled)
+probabilities3 = evaluator3.predict_proba(X_eval3_test_scaled)[:, 1]
+
+print("Evaluator 3 accuracy:", accuracy_score(y_eval_test, predictions3))
+print("ROC-AUC:", roc_auc_score(y_eval_test, probabilities3))
+print(classification_report(y_eval_test, predictions3, zero_division=0))
+
+
+# This second set of evaluators is for the Random Forest Models
+
+# Establishing ground truth
+rf_shifted_accuracies = []
+
+for model in random_forest_models:
+    predictions = model.predict(X_shifted)
+    rf_shifted_accuracies.append(
+        accuracy_score(y_val, predictions)
+    )
+
+rf_X_eval = []
+rf_y_eval = []
+
+for i, j in forest_pairs:
+    acc1 = random_forest_accuracies[i]
+    acc2 = random_forest_accuracies[j]
+
+    rf_X_eval.append([
+        min(acc1, acc2),
+        max(acc1, acc2),
+        abs(acc1 - acc2)
+    ])
+
+    shifted_gap = abs(
+        rf_shifted_accuracies[i] - rf_shifted_accuracies[j]
+    )
+
+    rf_y_eval.append(int(shifted_gap >= 0.05))
+
+print("Total RF pairs:", len(rf_y_eval))
+print("Underspecified RF pairs:", sum(rf_y_eval))
+print("Non-underspecified RF pairs:",
+      len(rf_y_eval) - sum(rf_y_eval))
